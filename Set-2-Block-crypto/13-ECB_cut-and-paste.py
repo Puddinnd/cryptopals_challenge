@@ -12,7 +12,7 @@ def profile_for(user):
 	p = {
 		'user': user,
 		'uid': 10,
-		'role': 'admin'
+		'role': 'user'
 	}
 	return ("email=%s&uid=%d&role=%s" % (p['user'], p['uid'], p['role'])).encode('utf8')
 
@@ -30,10 +30,33 @@ def decrypt(ciphertext):
 	return unpad(cipher.decrypt(ciphertext), BLOCK_SIZE)
 
 def main():
-	profile = profile_for("eiei")
+	### Test input							PKCS#7->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	### 0123456789ABCDEF | 0123456789ABCDEF | 01234   5   6   7   8   9   A   B   C   D   E   F
+	### email=eiei@test. | com&uid=10&role= | user\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c
+	### email=eiei@test.com&uid=10&role=user\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c
+	profile = profile_for("eiei@test.com")
+	print("Profile:", profile)
 	ciphertext = encrypt(profile)
 	plaintext = decrypt(ciphertext)
 	decoded_profile = decode_profile(plaintext)
-	print(decoded_profile)
+	print("Decoded profile:", decoded_profile)
+	### Let's attack by rotate information position and change a bit...
+	### swap block 2 and 3 then change user to admin(also change padding too)
+	### 0123456789ABCDEF | 012345   6   7   8   9   A   B   C   D   E   F    | 0123456789ABCDEF
+	### email=eiei@test. | admin\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b | com&uid=10&role=
+	### email=eiei@test.admin\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0bcom&uid=10&role=
+	attack_profile = b'email=eiei@test.admin\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0bcom&uid=10&role='
+	print("Attack profile:", attack_profile)
+	attacker_ciphertext = encrypt(attack_profile)
+	modified_ciphertext_profile = ciphertext[0:BLOCK_SIZE*2] + attacker_ciphertext[BLOCK_SIZE:BLOCK_SIZE*2]
+	attacker_plaintext = decrypt(modified_ciphertext_profile)
+	attacker_decoded_profile = decode_profile(attacker_plaintext)
+	print("Decoded profile:", attacker_decoded_profile)
 
 main()
+
+
+"""
+Thanks for the great idea:
+https://braincoke.fr/write-up/cryptopals/cryptopals-ecb-cut-and-paste/
+"""
